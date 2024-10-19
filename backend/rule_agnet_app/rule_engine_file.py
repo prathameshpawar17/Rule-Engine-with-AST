@@ -46,21 +46,69 @@ def create_rule(rule_string: str) -> Node:
 def combine_rules(rules: List[str]) -> Node:
     if not rules:
         raise ValueError("No rules provided.")
-    if len(rules) == 1:
-        return create_rule(rules[0])
+    
+    # Parse all rules into their AST representations
+    ast_list = [create_rule(rule) for rule in rules]
 
-    combined_ast = create_rule(rules[0])
-    for rule in rules[1:]:
-        new_ast = create_rule(rule)
-        combined_ast = Node("operator", "AND", combined_ast, new_ast)  # Use "AND" to combine rules
+    # Use a heuristic to decide how to combine them
+    # For example, if "OR" is more common, use it as the primary operator
+    and_count = sum(1 for rule in rules if "AND" in rule)
+    or_count = len(rules) - and_count
+    primary_operator = "OR" if or_count > and_count else "AND"
 
+    # Combine the ASTs using the primary operator
+    combined_ast = ast_list[0]
+    for ast in ast_list[1:]:
+        combined_ast = Node("operator", primary_operator, combined_ast, ast)
+    
+    # Optional: Further optimization by removing duplicate nodes
+    combined_ast = optimize_ast(combined_ast)
     return combined_ast
 
+def optimize_ast(node: Node) -> Node:
+    """Recursively optimize the AST by removing redundant nodes."""
+    if node.type == "operator":
+        left = optimize_ast(node.left)
+        right = optimize_ast(node.right)
+
+        # If the left and right sub-trees are the same, we can reduce the depth
+        if left == right:
+            return left
+
+        # Simplify nested identical operators, e.g., ((A AND B) AND C) -> (A AND B AND C)
+        if left.type == "operator" and left.value == node.value:
+            return Node("operator", node.value, left.left, Node("operator", node.value, left.right, right))
+        if right.type == "operator" and right.value == node.value:
+            return Node("operator", node.value, Node("operator", node.value, left, right.left), right.right)
+
+        # If no optimizations apply, return the original structure
+        node.left = left
+        node.right = right
+    return node
+
+
+# def combine_rules(rules: List[str]) -> Node:
+#     if not rules:
+#         raise ValueError("No rules provided.")
+#     if len(rules) == 1:
+#         return create_rule(rules[0])
+
+#     combined_ast = create_rule(rules[0])
+#     for rule in rules[1:]:
+#         new_ast = create_rule(rule)
+#         combined_ast = Node("operator", "AND", combined_ast, new_ast)  # Use "AND" to combine rules
+
+#     return combined_ast
 
 def evaluate_rule(ast: Dict[str, Any], data: Dict[str, Any]) -> bool:
     def evaluate_node(node):
         if node['type'] == 'operator':
             left = evaluate_node(node['left'])
+            if node['value'] == 'AND' and not left:
+                return False  # Short-circuit for AND
+            if node['value'] == 'OR' and left:
+                return True  # Short-circuit for OR
+
             right = evaluate_node(node['right'])
             if node['value'] == 'AND':
                 return left and right
@@ -74,8 +122,7 @@ def evaluate_rule(ast: Dict[str, Any], data: Dict[str, Any]) -> bool:
                 attr_value = data.get(attr)
                 if attr_value is None:
                     return False
-                
-                
+
                 # Perform comparison based on the operator
                 if op == '=':
                     return str(attr_value) == value.strip("'")
@@ -95,6 +142,45 @@ def evaluate_rule(ast: Dict[str, Any], data: Dict[str, Any]) -> bool:
                 raise ValueError(f"Error evaluating operand: {node['value']} - {str(e)}")
 
     return evaluate_node(ast)
+
+# def evaluate_rule(ast: Dict[str, Any], data: Dict[str, Any]) -> bool:
+#     def evaluate_node(node):
+#         if node['type'] == 'operator':
+#             left = evaluate_node(node['left'])
+#             right = evaluate_node(node['right'])
+#             if node['value'] == 'AND':
+#                 return left and right
+#             elif node['value'] == 'OR':
+#                 return left or right
+#             else:
+#                 raise ValueError(f"Unknown operator: {node['value']}")
+#         elif node['type'] == 'operand':
+#             try:
+#                 attr, op, value = node['value'].split()
+#                 attr_value = data.get(attr)
+#                 if attr_value is None:
+#                     return False
+                
+                
+#                 # Perform comparison based on the operator
+#                 if op == '=':
+#                     return str(attr_value) == value.strip("'")
+#                 elif op == '!=':
+#                     return str(attr_value) != value.strip("'")
+#                 elif op == '>':
+#                     return float(attr_value) > float(value)
+#                 elif op == '<':
+#                     return float(attr_value) < float(value)
+#                 elif op == '>=':
+#                     return float(attr_value) >= float(value)
+#                 elif op == '<=':
+#                     return float(attr_value) <= float(value)
+#                 else:
+#                     raise ValueError(f"Invalid operator: {op}")
+#             except Exception as e:
+#                 raise ValueError(f"Error evaluating operand: {node['value']} - {str(e)}")
+
+#     return evaluate_node(ast)
 
 
 # # Sample rules
