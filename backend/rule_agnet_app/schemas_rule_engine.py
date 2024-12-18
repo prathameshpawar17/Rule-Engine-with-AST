@@ -6,17 +6,17 @@ class RuleBase(BaseModel):
     description: Optional[str] = None
 
 class RuleCreate(RuleBase):
-    rule_string: str
+    rule_string: str  # The rule expression to be converted into an AST
 
 class RuleUpdate(RuleBase):
     rule_string: Optional[str] = None
 
 class Rule(RuleBase):
     id: int
-    ast_json: Dict[str, Any]
+    ast_json: Dict[str, Any]  # JSON representation of the Abstract Syntax Tree (AST)
 
     class Config:
-        from_attributes = True
+        from_attributes = True  # Allows compatibility with SQLAlchemy models
 
 class UserAttributeBase(BaseModel):
     name: str
